@@ -24,5 +24,6 @@ namespace Dalamud
         /// Indicating a French game client.
         /// </summary>
         French,
+        ChineseSimplified,
     }
 }

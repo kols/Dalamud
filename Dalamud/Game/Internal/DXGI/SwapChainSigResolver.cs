@@ -30,7 +30,22 @@ namespace Dalamud.Game.Internal.DXGI
             // This(code after the function head - offset of it) was picked to avoid running into issues with other hooks being installed into this function.
             this.Present = scanner.ScanModule("41 8B F0 8B FA 89 54 24 ?? 48 8B D9 48 89 4D ?? C6 44 24 ?? 00") - 0x37;
 
-            this.ResizeBuffers = scanner.ScanModule("48 8B C4 55 41 54 41 55 41 56 41 57 48 8D 68 B1 48 81 EC ?? ?? ?? ?? 48 C7 45 ?? ?? ?? ?? ?? 48 89 58 10 48 89 70 18 48 89 78 20 45 8B F9 45 8B E0 44 8B EA 48 8B F9 8B 45 7F 89 44 24 30 8B 75 77 89 74 24 28 44 89 4C 24");
+            var ResizeBuffersSig = scanner.ScanModule("45 8B CC 45 8B C5 33 D2 48 8B CF E8 ?? ?? ?? ?? 44 8B C0 48 8D 55 ?? 48 8D 4D ?? E8 ?? ?? ?? ??");
+            Log.Debug($"ResizeBuffersSig={ResizeBuffersSig.ToInt64():X}");
+            //CC
+            //CC
+            //CC
+            //CC
+            //CC
+            //.text: 00000001800206F0 48 8B C4                                                        mov rax, rsp
+            //.text: 00000001800206F3 55                                                              push rbp
+            //.text: 00000001800206F4 41 54                                                           push r12
+            //.text: 00000001800206F6 41 55                                                           push r13
+            //.text: 00000001800206F8 41 56                                                           push r14
+            //.text: 00000001800206FA 41 57                                                           push r15
+            this.ResizeBuffers = scanner.ScanReversed(ResizeBuffersSig, 0x100, "CC CC CC CC 48 8B C4 55 41 54") + 4;
+            Log.Debug($"ResizeBuffers={ResizeBuffers.ToInt64():X}");
+            Log.Debug($"ResizeBuffersOffset={ResizeBuffersSig.ToInt64() - ResizeBuffers.ToInt64():X}");
         }
     }
 }

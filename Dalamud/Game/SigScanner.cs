@@ -547,5 +547,70 @@ namespace Dalamud.Game
                 Log.Error(ex, "Couldn't load cached sigs");
             }
         }
+
+        public IntPtr ScanReversed(IntPtr baseAddress, int size, string signature)
+        {
+            var needle = SigToNeedle(signature);
+
+            unsafe
+            {
+                var pCursor = (byte*)baseAddress.ToPointer();
+                var pBottom = (byte*)(baseAddress - size + needle.Length);
+                while (pCursor > pBottom)
+                {
+                    if (IsMatch(pCursor, needle)) return (IntPtr)pCursor;
+
+
+                    // Advance an offset
+                    pCursor -= 1;
+                }
+            }
+
+            throw new KeyNotFoundException($"Can't find a signature of {signature}");
+        }
+
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private unsafe bool IsMatch(byte* pCursor, byte?[] needle)
+        {
+            for (var i = 0; i < needle.Length; i++)
+            {
+                var expected = needle[i];
+                if (expected == null) continue;
+
+                var actual = *(pCursor + i);
+                if (expected != actual) return false;
+            }
+
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private byte?[] SigToNeedle(string signature)
+        {
+            // Strip all whitespaces
+            signature = signature.Replace(" ", "");
+
+            if (signature.Length % 2 != 0)
+                throw new ArgumentException("Signature without whitespaces must be divisible by two.",
+                                            nameof(signature));
+
+            var needleLength = signature.Length / 2;
+            var needle = new byte?[needleLength];
+
+            for (var i = 0; i < needleLength; i++)
+            {
+                var hexString = signature.Substring(i * 2, 2);
+                if (hexString == "??" || hexString == "**")
+                {
+                    needle[i] = null;
+                    continue;
+                }
+
+                needle[i] = byte.Parse(hexString, NumberStyles.AllowHexSpecifier);
+            }
+
+            return needle;
+        }
     }
 }
