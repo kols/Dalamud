@@ -1,3 +1,5 @@
+**A simple cn server adaptation fork**
+
 # Dalamud  [![Actions Status](https://github.com/goatcorp/Dalamud/workflows/Build%20Dalamud/badge.svg)](https://github.com/goatcorp/Dalamud/actions) [![Discord Shield](https://discordapp.com/api/guilds/581875019861328007/widget.png?style=shield)](https://discord.gg/3NMcUV5)
 
 <p align="center">
