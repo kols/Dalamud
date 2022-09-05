@@ -166,7 +166,7 @@ internal partial class PluginManager : IDisposable, IServiceType
     /// <summary>
     /// Gets or sets a value indicating whether plugins of all API levels will be loaded.
     /// </summary>
-    public bool LoadAllApiLevels { get; set; }
+    public bool LoadAllApiLevels { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether banned plugins will be loaded.

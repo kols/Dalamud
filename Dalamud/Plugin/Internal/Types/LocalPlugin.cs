@@ -207,7 +207,7 @@ internal class LocalPlugin : IDisposable
     /// <summary>
     /// Gets a value indicating whether this plugin's API level is out of date.
     /// </summary>
-    public bool IsOutdated => this.Manifest.DalamudApiLevel < PluginManager.DalamudApiLevel;
+    public bool IsOutdated => this.Manifest.DalamudApiLevel < PluginManager.DalamudApiLevel && !Service<PluginManager>.Get().LoadAllApiLevels;
 
     /// <summary>
     /// Gets a value indicating whether the plugin is for testing use only.

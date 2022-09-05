@@ -1618,7 +1618,7 @@ namespace Dalamud.Interface.Internal.Windows.PluginInstaller
             var useTesting = PluginManager.UseTesting(manifest);
             var wasSeen = this.WasPluginSeen(manifest.InternalName);
 
-            var isOutdated = manifest.DalamudApiLevel < PluginManager.DalamudApiLevel;
+            var isOutdated = manifest.DalamudApiLevel < PluginManager.DalamudApiLevel && !pluginManager.LoadAllApiLevels;
 
             // Check for valid versions
             if ((useTesting && manifest.TestingAssemblyVersion == null) || manifest.AssemblyVersion == null)
