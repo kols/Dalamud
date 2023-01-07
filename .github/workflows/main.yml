@@ -38,13 +38,13 @@ jobs:
   
   deploy_stg:
     name: Deploy dalamud-distrib staging
-    if: ${{ github.repository_owner == 'goatcorp' && github.event_name == 'push' }}
+    if: ${{ github.repository_owner == 'ottercorp' && github.event_name == 'push' }}
     needs: build
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
       with:
-        repository: goatcorp/dalamud-distrib
+        repository: ottercorp/dalamud-distrib
         ssh-key: ${{ secrets.DEPLOY_SSH }}
     - uses: actions/download-artifact@v2
       with:
@@ -61,7 +61,7 @@ jobs:
       env:
         GH_BRANCH: ${{ steps.extract_branch.outputs.branch }}
       run: |
-        Compress-Archive .\scratch\* .\canary.zip  # Recreate the release zip
+        Compress-Archive -Force .\scratch\* .\canary.zip  # Recreate the release zip
         
         $branchName = $env:GH_BRANCH
         

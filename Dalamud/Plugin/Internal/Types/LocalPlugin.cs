@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Dalamud.Configuration.Internal;
 using Dalamud.Game;
 using Dalamud.Game.Gui.Dtr;
@@ -400,7 +401,7 @@ internal class LocalPlugin : IDisposable
                 new PluginPatchData(this.DllFile);
 
             this.DalamudInterface =
-                new DalamudPluginInterface(this.pluginAssembly.GetName().Name!, this.DllFile, reason, this.IsDev);
+                new DalamudPluginInterface(this.pluginAssembly.GetName().Name!, this.DllFile, reason, this.IsDev, this.Manifest.InstalledFromUrl);
 
             if (this.Manifest.LoadSync && this.Manifest.LoadRequiredState is 0 or 1)
             {

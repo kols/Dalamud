@@ -582,6 +582,10 @@ namespace Dalamud.Injector
             {
                 mode = "inject";
             }
+            else if (mode.Length > 0 && mode.Length <= 6 && "inject"[0..mode.Length] == mode)
+            {
+                mode = "inject";
+            }
             else
             {
                 throw new CommandLineException($"\"{mode}\" is not a valid Dalamud load mode.");
