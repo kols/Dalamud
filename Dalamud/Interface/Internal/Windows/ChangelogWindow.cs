@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Numerics;
 
@@ -8,7 +7,6 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
 using ImGuiNET;
 using ImGuiScene;
-using Serilog;
 
 namespace Dalamud.Interface.Internal.Windows;
 
@@ -20,21 +18,20 @@ internal sealed class ChangelogWindow : Window, IDisposable
     /// <summary>
     /// Whether the latest update warrants a changelog window.
     /// </summary>
-    public const string WarrantsChangelogForMajorMinor = "7.0.";
+    public const string WarrantsChangelogForMajorMinor = "7.4.";
 
     private const string ChangeLog =
-        @"• 修复代理设置
-• 适配国服服务器、大区列表
-• 兼容ReShade5/GShade 4
+        @"• Updated Dalamud for compatibility with Patch 6.3
+• Made things more speedy by updating to .NET 7
 
-如果您发现任何问题或需要帮助，请查看常见问题解答，如果您需要帮助，请联系我们的 QQ频道
-谢谢，玩得开心！";
+If you note any issues or need help, please check the FAQ, and reach out on our Discord if you need help.
+Thanks and have fun!";
 
     private const string UpdatePluginsInfo =
-            @"• 由于此更新，您的所有插件都被自动禁用。 这个是正常的。
-• 打开插件安装程序，然后单击“更新插件”。更新的插件应该更新然后重新启用自己。
-    => 请记住，并非所有插件都已针对新版本进行了更新。
-    => 如果某些插件在“已安装插件”选项卡中显示为红色叉号，则它们可能尚不可用。";
+        @"• All of your plugins were disabled automatically, due to this update. This is normal.
+• Open the plugin installer, then click 'update plugins'. Updated plugins should update and then re-enable themselves.
+   => Please keep in mind that not all of your plugins may already be updated for the new version.
+   => If some plugins are displayed with a red cross in the 'Installed Plugins' tab, they may not yet be available.";
 
     private readonly string assemblyVersion = Util.AssemblyVersion;
 
@@ -44,7 +41,7 @@ internal sealed class ChangelogWindow : Window, IDisposable
     /// Initializes a new instance of the <see cref="ChangelogWindow"/> class.
     /// </summary>
     public ChangelogWindow()
-        : base("有啥新功能？？", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoResize)
+        : base("What's new in Dalamud?", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoResize)
     {
         this.Namespace = "DalamudChangelogWindow";
 
@@ -61,11 +58,11 @@ internal sealed class ChangelogWindow : Window, IDisposable
     /// <inheritdoc/>
     public override void Draw()
     {
-        ImGui.Text($"卫月框架更新到了版本 D{this.assemblyVersion}。");
+        ImGui.Text($"Dalamud has been updated to version D{this.assemblyVersion}.");
 
         ImGuiHelpers.ScaledDummy(10);
 
-            ImGui.Text("包含了以下更新:");
+        ImGui.Text("The following changes were introduced:");
 
         ImGui.SameLine();
         ImGuiHelpers.ScaledDummy(0);
@@ -75,13 +72,13 @@ internal sealed class ChangelogWindow : Window, IDisposable
 
         ImGuiHelpers.ScaledDummy(5);
 
-            ImGui.TextColored(ImGuiColors.DalamudRed, " !!! 注意 !!!");
+        ImGui.TextColored(ImGuiColors.DalamudRed, " !!! ATTENTION !!!");
 
         ImGui.TextWrapped(UpdatePluginsInfo);
 
         ImGuiHelpers.ScaledDummy(10);
 
-        // ImGui.Text("感谢使用我们的工具！");
+        // ImGui.Text("Thank you for using our tools!");
 
         // ImGuiHelpers.ScaledDummy(10);
 
@@ -92,90 +89,54 @@ internal sealed class ChangelogWindow : Window, IDisposable
             Service<DalamudInterface>.Get().OpenPluginInstaller();
         }
 
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.PopFont();
-                ImGui.SetTooltip("打开插件安装器");
-                ImGui.PushFont(UiBuilder.IconFont);
-            }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.PopFont();
+            ImGui.SetTooltip("Open Plugin Installer");
+            ImGui.PushFont(UiBuilder.IconFont);
+        }
 
         ImGui.SameLine();
 
-            if (ImGui.Button(FontAwesomeIcon.LaughBeam.ToIconString()))
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo()
-                    {
-                        FileName = "https://discord.gg/3NMcUV5",
-                        UseShellExecute = true,
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Could not open discord url");
-                }
-            }
+        if (ImGui.Button(FontAwesomeIcon.LaughBeam.ToIconString()))
+        {
+            Util.OpenLink("https://discord.gg/3NMcUV5");
+        }
 
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.PopFont();
-                ImGui.SetTooltip("加入我们的 Discord 服务器（国际服）");
-                ImGui.PushFont(UiBuilder.IconFont);
-            }
-
-            ImGui.SameLine();
-
-            if (ImGui.Button(FontAwesomeIcon.LaughSquint.ToIconString()))
-            {
-                try
-                {
-                    Process.Start(new ProcessStartInfo()
-                    {
-                        FileName = "https://qun.qq.com/qqweb/qunpro/share?_wv=3&_wwv=128&appChannel=share&inviteCode=CZtWN&businessType=9&from=181074&biz=ka&shareSource=5",
-                        UseShellExecute = true,
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Could not open QQ url");
-                }
-            }
-
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.PopFont();
-                ImGui.SetTooltip("加入我们的 QQ 频道");
-                ImGui.PushFont(UiBuilder.IconFont);
-            }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.PopFont();
+            ImGui.SetTooltip("Join our Discord server");
+            ImGui.PushFont(UiBuilder.IconFont);
+        }
 
         ImGui.SameLine();
 
-            if (ImGui.Button(FontAwesomeIcon.Globe.ToIconString()))
-            {
-                Util.OpenLink("https://ottercorp.github.io/faq/");
-            }
+        if (ImGui.Button(FontAwesomeIcon.Globe.ToIconString()))
+        {
+            Util.OpenLink("https://goatcorp.github.io/faq/");
+        }
 
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.PopFont();
-                ImGui.SetTooltip("查看 FAQ");
-                ImGui.PushFont(UiBuilder.IconFont);
-            }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.PopFont();
+            ImGui.SetTooltip("See the FAQ");
+            ImGui.PushFont(UiBuilder.IconFont);
+        }
 
         ImGui.SameLine();
 
-            if (ImGui.Button(FontAwesomeIcon.Heart.ToIconString()))
-            {
-                Util.OpenLink("https://ottercorp.github.io/faq/support");
-            }
+        if (ImGui.Button(FontAwesomeIcon.Heart.ToIconString()))
+        {
+            Util.OpenLink("https://goatcorp.github.io/faq/support");
+        }
 
-            if (ImGui.IsItemHovered())
-            {
-                ImGui.PopFont();
-                ImGui.SetTooltip("支持我们");
-                ImGui.PushFont(UiBuilder.IconFont);
-            }
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.PopFont();
+            ImGui.SetTooltip("Support what we care about");
+            ImGui.PushFont(UiBuilder.IconFont);
+        }
 
         ImGui.PopFont();
 
@@ -183,10 +144,10 @@ internal sealed class ChangelogWindow : Window, IDisposable
         ImGuiHelpers.ScaledDummy(20, 0);
         ImGui.SameLine();
 
-            if (ImGui.Button("关闭"))
-            {
-                this.IsOpen = false;
-            }
+        if (ImGui.Button("Close"))
+        {
+            this.IsOpen = false;
+        }
 
         imgCursor.X += 750;
         imgCursor.Y -= 30;

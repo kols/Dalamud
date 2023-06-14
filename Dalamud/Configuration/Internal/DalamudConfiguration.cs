@@ -89,11 +89,6 @@ internal sealed class DalamudConfiguration : IServiceType
     public string? DalamudBetaKey { get; set; } = null;
 
     /// <summary>
-    /// Gets or sets a list of fuck GFW replacements.
-    /// </summary>
-    public List<FuckGFWSettings> FuckGFWList { get; set; } = new();
-
-    /// <summary>
     /// Gets or sets a list of custom repos.
     /// </summary>
     public List<ThirdPartyRepoSettings> ThirdRepoList { get; set; } = new();
@@ -156,6 +151,11 @@ internal sealed class DalamudConfiguration : IServiceType
     /// Gets or sets a value indicating whether or not plugin UI should be hidden during GPose.
     /// </summary>
     public bool ToggleUiHideDuringGpose { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether or not a message containing Dalamud's current version and the number of loaded plugins should be sent at login.
+    /// </summary>
+    public bool PrintDalamudWelcomeMsg { get; set; } = true;
 
     /// <summary>
     /// Gets or sets a value indicating whether or not a message containing detailed plugin information should be sent at login.
@@ -248,6 +248,11 @@ internal sealed class DalamudConfiguration : IServiceType
     /// Uses default value that may change between versions if set to null.
     /// </summary>
     public int? PluginWaitBeforeFree { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether or not crashes during shutdown should be reported.
+    /// </summary>
+    public bool ReportShutdownCrashes { get; set; }
 
     /// <summary>
     /// Gets or sets a list of saved styles.
@@ -367,6 +372,31 @@ internal sealed class DalamudConfiguration : IServiceType
     public List<PluginTestingOptIn>? PluginTestingOptIns { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether the FFXIV window should be toggled to immersive mode.
+    /// </summary>
+    public bool WindowIsImmersive { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets hitch threshold for game network up in milliseconds.
+    /// </summary>
+    public double GameNetworkUpHitch { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets hitch threshold for game network down in milliseconds.
+    /// </summary>
+    public double GameNetworkDownHitch { get; set; } = 30;
+
+    /// <summary>
+    /// Gets or sets hitch threshold for framework update in milliseconds.
+    /// </summary>
+    public double FrameworkUpdateHitch { get; set; } = 50;
+
+    /// <summary>
+    /// Gets or sets hitch threshold for ui builder in milliseconds.
+    /// </summary>
+    public double UiBuilderHitch { get; set; } = 100;
+
+    /// <summary>
     /// Load a configuration from the provided path.
     /// </summary>
     /// <param name="path">The path to load the configuration file from.</param>
@@ -390,11 +420,19 @@ internal sealed class DalamudConfiguration : IServiceType
     }
 
     /// <summary>
-    /// Save the configuration at the path it was loaded from.
+    /// Save the configuration at the path it was loaded from, at the next frame.
     /// </summary>
     public void QueueSave()
     {
         this.isSaveQueued = true;
+    }
+
+    /// <summary>
+    /// Immediately save the configuration.
+    /// </summary>
+    public void ForceSave()
+    {
+        this.Save();
     }
 
     /// <summary>
@@ -415,7 +453,7 @@ internal sealed class DalamudConfiguration : IServiceType
     {
         ThreadSafety.AssertMainThread();
 
-        File.WriteAllText(this.configPath, JsonConvert.SerializeObject(this, SerializerSettings));
+        Util.WriteAllTextSafe(this.configPath, JsonConvert.SerializeObject(this, SerializerSettings));
         this.DalamudConfigurationSaved?.Invoke(this);
     }
 }

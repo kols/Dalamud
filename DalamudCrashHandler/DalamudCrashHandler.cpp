@@ -739,14 +739,41 @@ int main() {
 
         std::cout << "Crash triggered" << std::endl;
 
+        auto shutup_mutex = CreateMutex(NULL, false, L"DALAMUD_CRASHES_NO_MORE");
+        bool shutup = false;
+        if (shutup_mutex == NULL && GetLastError() == ERROR_ALREADY_EXISTS)
+            shutup = true;
+
+        /*
+        Hard won wisdom: changing symbol path with SymSetSearchPath() after modules
+        have been loaded (invadeProcess=TRUE in SymInitialize() or SymRefreshModuleList())
+        doesn't work.
+        I had to provide symbol path in SymInitialize() (and either invadeProcess=TRUE
+        or invadeProcess=FALSE and call SymRefreshModuleList()). There's probably
+        a way to force it, but I'm happy I found a way that works.
+
+        https://github.com/sumatrapdfreader/sumatrapdf/blob/master/src/utils/DbgHelpDyn.cpp
+        */
+        
         if (g_bSymbolsAvailable) {
             SymRefreshModuleList(g_hProcess);
-        } else if (g_bSymbolsAvailable = SymInitialize(g_hProcess, nullptr, true); g_bSymbolsAvailable) {
-            if (!assetDir.empty()) {
-                if (!SymSetSearchPathW(g_hProcess, std::format(L".;{}", (assetDir / "UIRes" / "pdb").wstring()).c_str()))
-                    std::wcerr << std::format(L"SymSetSearchPathW error: 0x{:x}", GetLastError()) << std::endl;
-            }
-        } else {
+        }
+        else if(!assetDir.empty())
+        {
+            auto symbol_search_path = std::format(L".;{}", (assetDir / "UIRes" / "pdb").wstring());
+            
+            g_bSymbolsAvailable = SymInitializeW(g_hProcess, symbol_search_path.c_str(), true);
+            std::wcout << std::format(L"Init symbols with PDB at {}", symbol_search_path) << std::endl;
+
+            SymRefreshModuleList(g_hProcess);
+        }
+        else
+        {
+            g_bSymbolsAvailable = SymInitializeW(g_hProcess, nullptr, true);
+            std::cout << "Init symbols without PDB" << std::endl;
+        }
+        
+        if (!g_bSymbolsAvailable) {
             std::wcerr << std::format(L"SymInitialize error: 0x{:x}", GetLastError()) << std::endl;
         }
 
@@ -773,7 +800,11 @@ int main() {
         std::wstring dumpError;
         if (dumpPath.empty()) {
             std::cout << "Skipping dump path, as log directory has not been specified" << std::endl;
-        } else {
+        } else if (shutup) {
+            std::cout << "Skipping dump, was shutdown" << std::endl;
+        }
+        else
+        {
             MINIDUMP_EXCEPTION_INFORMATION mdmp_info{};
             mdmp_info.ThreadId = GetThreadId(exinfo.hThreadHandle);
             mdmp_info.ExceptionPointers = exinfo.pExceptionPointers;
@@ -799,6 +830,10 @@ int main() {
         std::wostringstream log;
         log << std::format(L"Unhandled native exception occurred at {}", to_address_string(exinfo.ContextRecord.Rip, false)) << std::endl;
         log << std::format(L"Code: {:X}", exinfo.ExceptionRecord.ExceptionCode) << std::endl;
+
+        if (shutup)
+            log << L"======= Crash handler was globally muted(shutdown?) =======" << std::endl;
+        
         if (dumpPath.empty())
             log << L"Dump skipped" << std::endl;
         else if (dumpError.empty())
@@ -871,11 +906,13 @@ int main() {
         config.hInstance = GetModuleHandleW(nullptr);
         config.dwFlags = TDF_ENABLE_HYPERLINKS | TDF_CAN_BE_MINIMIZED | TDF_ALLOW_DIALOG_CANCELLATION | TDF_USE_COMMAND_LINKS;
         config.pszMainIcon = MAKEINTRESOURCE(IDI_ICON1);
-        config.pszMainInstruction = L"\x51FA\x73B0\x81F4\x547D\x9519\x8BEF";
+        config.pszMainInstruction = L"An error in the game occurred";
         config.pszContent = (L""
-            L"\x53D1\x751F\x7684\x539F\x56E0\x53EF\x80FD\x662F\x4E00\x4E2A\x51FA\x9519\x7684\x63D2\x4EF6\x3001\x635F\x574F\x7684 TexTools Mod\x3001\x5176\x4ED6\x7684\x7B2C\x4E09\x65B9\x5DE5\x5177\xFF0C\x6216\x4EC5\x4EC5\x662F\x6E38\x620F\x672C\x8EAB\x7684 Bug\x3002" "\n"
+            R"aa(The game has to close. This error may be caused by a faulty plugin, a broken mod, any other third-party tool, or simply a bug in the game.)aa" "\n"
             "\n"
-            L"\x8BF7\x5C1D\x8BD5\x4F7F\x7528 XIVLauncher \x8BBE\x7F6E\x4E2D\x7684\x6E38\x620F\x5B8C\x6574\x6027\x68C0\x67E5\x68C0\x6D4B\x6E38\x620F\x6587\x4EF6\x5B8C\x6574\x6027\xFF0C\x5E76\x4E14\x505C\x7528\x4F60\x4E0D\x9700\x8981\x7684\x63D2\x4EF6\x3002"
+            R"aa(Try running a game repair in XIVLauncher by right clicking the login button, and disabling plugins you don't need. Please also check your antivirus, see our <a href="help">help site</a> for more information.)aa" "\n"
+            "\n"
+            R"aa(Upload <a href="exporttspack">this file (click here)</a> if you want to ask for help in our <a href="discord">Discord server</a>.)aa" "\n"
         );
         config.pButtons = buttons;
         config.cButtons = ARRAYSIZE(buttons);
@@ -942,6 +979,11 @@ int main() {
         if (submitThread.joinable()) {
             submitThread.join();
             submitThread = {};
+        }
+
+        if (shutup) {
+            TerminateProcess(g_hProcess, exinfo.ExceptionRecord.ExceptionCode);
+            return 0;
         }
 
         int nButtonPressed = 0, nRadioButton = 0;

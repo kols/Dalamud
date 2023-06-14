@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 
 using Dalamud.Configuration.Internal;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
+using Dalamud.Networking.Http;
 using ImGuiNET;
 using Newtonsoft.Json;
 
@@ -40,7 +40,7 @@ public class BranchSwitcherWindow : Window
     {
         Task.Run(async () =>
         {
-            using var client = new HttpClient();
+            var client = Service<HappyHttpClient>.Get().SharedHttpClient;
             this.branches = await client.GetFromJsonAsync<Dictionary<string, VersionEntry>>(BranchInfoUrl);
             Debug.Assert(this.branches != null, "this.branches != null");
 
@@ -102,6 +102,9 @@ public class BranchSwitcherWindow : Window
             if (ImGui.Button("Pick & Restart"))
             {
                 Pick();
+
+                // If we exit immediately, we need to write out the new config now
+                Service<DalamudConfiguration>.Get().ForceSave();
 
                 var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 var xlPath = Path.Combine(appData, "XIVLauncher", "XIVLauncher.exe");

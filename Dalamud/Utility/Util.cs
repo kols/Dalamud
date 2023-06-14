@@ -4,21 +4,20 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Numerics;
-using System.Net;
 using System.Net.Http;
+using System.Net;
+using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Dalamud.Configuration;
+
 using Dalamud.Configuration.Internal;
 using Dalamud.Game;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Logging.Internal;
+using Dalamud.Networking.Http;
 using ImGuiNET;
 using Microsoft.Win32;
 using Serilog;
@@ -31,8 +30,8 @@ namespace Dalamud.Utility;
 public static class Util
 {
     private static string? gitHashInternal;
+    private static int? gitCommitCountInternal;
     private static string? gitHashClientStructsInternal;
-    private static List<FuckGFWSettings> fuckGFWList;
 
     private static ulong moduleStartAddr;
     private static ulong moduleEndAddr;
@@ -41,7 +40,8 @@ public static class Util
     /// Gets an httpclient for usage.
     /// Do NOT await this.
     /// </summary>
-    public static HttpClient HttpClient { get; } = new();
+    [Obsolete($"Use Service<{nameof(HappyHttpClient)}> instead.")]
+    public static HttpClient HttpClient { get; } = Service<HappyHttpClient>.Get().SharedHttpClient;
 
     /// <summary>
     /// Gets the assembly version of Dalamud.
@@ -116,6 +116,26 @@ public static class Util
         gitHashInternal = attrs.First(a => a.Key == "GitHash").Value;
 
         return gitHashInternal;
+    }
+
+    /// <summary>
+    /// Gets the amount of commits in the current branch, or null if undetermined.
+    /// </summary>
+    /// <returns>The amount of commits in the current branch.</returns>
+    public static int? GetGitCommitCount()
+    {
+        if (gitCommitCountInternal != null)
+            return gitCommitCountInternal.Value;
+
+        var asm = typeof(Util).Assembly;
+        var attrs = asm.GetCustomAttributes<AssemblyMetadataAttribute>();
+
+        var value = attrs.First(a => a.Key == "GitCommitCount").Value;
+        if (value == null)
+            return null;
+
+        gitCommitCountInternal = int.Parse(value);
+        return gitCommitCountInternal.Value;
     }
 
     /// <summary>
@@ -439,55 +459,6 @@ public static class Util
     }
 
     /// <summary>
-    /// Set the list of fuck GFWs from configure.
-    /// </summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public static void SetFuckGFWFromConfig()
-    {
-        var configuration = Service<DalamudConfiguration>.Get();
-        fuckGFWList = configuration.FuckGFWList;
-    }
-
-    /// <summary>
-    /// This is a FUCK-GFW replacement of urls.
-    /// </summary>
-    /// <param name="url">A url to be fucked.</param>
-    /// <returns>A fucked url.</returns>
-    public static string FuckGFW(string url)
-    {
-        if (url == null) return null;
-        if (fuckGFWList == null)
-        {
-            SetFuckGFWFromConfig();
-        }
-
-        var originalUrl = url;
-        if (fuckGFWList != null)
-        {
-            foreach (var fuckGFW in fuckGFWList)
-            {
-                if (fuckGFW.IsEnabled)
-                {
-                    var oldUrl = url;
-                    url = Regex.Replace(url, fuckGFW.UrlRegex, fuckGFW.ReplaceTo);
-                    if (url != oldUrl)
-                    {
-                        Log.Debug($"GFW fucked by {fuckGFW.UrlRegex} -> {fuckGFW.ReplaceTo}:");
-                        Log.Debug($"\t{url}");
-                    }
-                }
-            }
-        }
-
-        if (originalUrl != url)
-        {
-            Log.Information($"Fucked GFW from {originalUrl} \n\tto {url}");
-        }
-
-        return url;
-    }
-
-    /// <summary>
     /// Compress a string using GZip.
     /// </summary>
     /// <param name="str">The input string.</param>
@@ -568,40 +539,73 @@ public static class Util
     }
 
     /// <summary>
-    /// Set the proxy.
+    /// Heuristically determine if the Windows version is higher than Windows 11's first build.
     /// </summary>
-    /// <param name="useSystemProxy">Use system proxy</param>
-    /// <param name="proxyHost">The proxy host.</param>
-    /// <param name="proxyPort">The proxy port.</param>
-    public static void SetProxy(bool useSystemProxy, string proxyHost = "", int proxyPort = 0)
-    {
-        var proxyAddress = $"{proxyHost}:{proxyPort}";
-        var proxy = useSystemProxy ? WebRequest.GetSystemWebProxy() : new WebProxy(proxyAddress, true);
-        if (useSystemProxy)
-        {
-            Log.Information($"Current proxy is default proxy of system.");
-        }
-        else
-        {
-            Log.Information($"Current proxy is {proxyAddress}.");
-        }
+    /// <returns>If Windows 11 has been detected.</returns>
+    public static bool IsWindows11() => Environment.OSVersion.Version.Build >= 22000;
 
-        WebRequest.DefaultWebProxy = proxy;
-        HttpClient.DefaultProxy = proxy;
-        }
-
-        /// <summary>
-        /// Open a link in the default browser.
-        /// </summary>
-        /// <param name="url">The link to open.</param>
+    /// <summary>
+    /// Open a link in the default browser.
+    /// </summary>
+    /// <param name="url">The link to open.</param>
     public static void OpenLink(string url)
+    {
+        var process = new ProcessStartInfo(url)
         {
-            var process = new ProcessStartInfo(url)
+            UseShellExecute = true,
+        };
+        Process.Start(process);
+    }
+
+    /// <summary>
+    /// Perform a "zipper merge" (A, 1, B, 2, C, 3) of multiple enumerables, allowing for lists to end early.
+    /// </summary>
+    /// <param name="sources">A set of enumerable sources to combine.</param>
+    /// <typeparam name="TSource">The resulting type of the merged list to return.</typeparam>
+    /// <returns>A new enumerable, consisting of the final merge of all lists.</returns>
+    public static IEnumerable<TSource> ZipperMerge<TSource>(params IEnumerable<TSource>[] sources)
+    {
+        // Borrowed from https://codereview.stackexchange.com/a/263451, thank you!
+        var enumerators = new IEnumerator<TSource>[sources.Length];
+        try
+        {
+            for (var i = 0; i < sources.Length; i++)
             {
-                UseShellExecute = true,
-            };
-            Process.Start(process);
+                enumerators[i] = sources[i].GetEnumerator();
+            }
+
+            var hasNext = new bool[enumerators.Length];
+
+            bool MoveNext()
+            {
+                var anyHasNext = false;
+                for (var i = 0; i < enumerators.Length; i++)
+                {
+                    anyHasNext |= hasNext[i] = enumerators[i].MoveNext();
+                }
+
+                return anyHasNext;
+            }
+
+            while (MoveNext())
+            {
+                for (var i = 0; i < enumerators.Length; i++)
+                {
+                    if (hasNext[i])
+                    {
+                        yield return enumerators[i].Current;
+                    }
+                }
+            }
         }
+        finally
+        {
+            foreach (var enumerator in enumerators)
+            {
+                enumerator?.Dispose();
+            }
+        }
+    }
 
     /// <summary>
     /// Dispose this object.
@@ -636,6 +640,22 @@ public static class Util
             else
                 Log.Error(e, logMessage);
         }
+    }
+
+    /// <summary>
+    /// Overwrite text in a file by first writing it to a temporary file, and then
+    /// moving that file to the path specified.
+    /// </summary>
+    /// <param name="path">The path of the file to write to.</param>
+    /// <param name="text">The text to write.</param>
+    internal static void WriteAllTextSafe(string path, string text)
+    {
+        var tmpPath = path + ".tmp";
+        if (File.Exists(tmpPath))
+            File.Delete(tmpPath);
+
+        File.WriteAllText(tmpPath, text);
+        File.Move(tmpPath, path, true);
     }
 
     private static unsafe void ShowValue(ulong addr, IEnumerable<string> path, Type type, object value)

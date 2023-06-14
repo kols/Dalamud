@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using System.Net.Http;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +20,9 @@ using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface.Internal;
+using Dalamud.IoC.Internal;
 using Dalamud.Logging.Internal;
+using Dalamud.Networking.Http;
 using Dalamud.Plugin.Internal.Exceptions;
 using Dalamud.Plugin.Internal.Types;
 using Dalamud.Utility;
@@ -32,19 +33,26 @@ namespace Dalamud.Plugin.Internal;
 
 /// <summary>
 /// Class responsible for loading and unloading plugins.
+/// NOTE: ALL plugin exposed services are marked as dependencies for PluginManager in Service{T}.
 /// </summary>
 [ServiceManager.EarlyLoadedService]
+#pragma warning disable SA1015
+
+// DalamudTextureWrap registers textures to dispose with IM
+[InherentDependency<InterfaceManager>]
+
+#pragma warning restore SA1015
 internal partial class PluginManager : IDisposable, IServiceType
 {
     /// <summary>
     /// The current Dalamud API level, used to handle breaking changes. Only plugins with this level will be loaded.
     /// </summary>
-    public const int DalamudApiLevel = 7;
+    public const int DalamudApiLevel = 8;
 
     /// <summary>
     /// Default time to wait between plugin unload and plugin assembly unload.
     /// </summary>
-    public const int PluginWaitBeforeFreeDefault = 500;
+    public const int PluginWaitBeforeFreeDefault = 1000; // upped from 500ms, seems more stable
 
     private const string DevPluginsDisclaimerFilename = "DONT_USE_THIS_FOLDER.txt";
 
@@ -69,6 +77,9 @@ Thanks and have fun!";
 
     [ServiceManager.ServiceDependency]
     private readonly DalamudStartInfo startInfo = Service<DalamudStartInfo>.Get();
+
+    [ServiceManager.ServiceDependency]
+    private readonly HappyHttpClient happyHttpClient = Service<HappyHttpClient>.Get();
 
     [ServiceManager.ServiceConstructor]
     private PluginManager()
@@ -182,7 +193,7 @@ Thanks and have fun!";
     /// <summary>
     /// Gets or sets a value indicating whether plugins of all API levels will be loaded.
     /// </summary>
-    public bool LoadAllApiLevels { get; set; } = true;
+    public bool LoadAllApiLevels { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether banned plugins will be loaded.
@@ -244,7 +255,7 @@ Thanks and have fun!";
                     new TextPayload("  ["),
                     new UIForegroundPayload(500),
                     this.openInstallerWindowPluginChangelogsLink,
-                    new TextPayload(Loc.Localize("DalamudInstallerPluginChangelogHelp", "Open plugin changelogs") + " "),
+                    new TextPayload(Loc.Localize("DalamudInstallerPluginChangelogHelp", "Open plugin changelogs")),
                     RawPayload.LinkTerminator,
                     new UIForegroundPayload(0),
                     new TextPayload("]"),
@@ -255,13 +266,13 @@ Thanks and have fun!";
             {
                 if (metadata.WasUpdated)
                 {
-                    chatGui.Print(Locs.DalamudPluginUpdateSuccessful(metadata.Name, metadata.Version) + (metadata.HasChangelog ? " " : string.Empty));
+                    chatGui.Print(Locs.DalamudPluginUpdateSuccessful(metadata.Name, metadata.Version));
                 }
                 else
                 {
                     chatGui.PrintChat(new XivChatEntry
                     {
-                        Message = Locs.DalamudPluginUpdateFailed(metadata.Name, metadata.Version) + (metadata.HasChangelog ? " " : string.Empty),
+                        Message = Locs.DalamudPluginUpdateFailed(metadata.Name, metadata.Version),
                         Type = XivChatType.Urgent,
                     });
                 }
@@ -725,7 +736,7 @@ Thanks and have fun!";
         var downloadUrl = useTesting ? repoManifest.DownloadLinkTesting : repoManifest.DownloadLinkInstall;
         var version = useTesting ? repoManifest.TestingAssemblyVersion : repoManifest.AssemblyVersion;
 
-        var response = await Util.HttpClient.GetAsync(Util.FuckGFW(downloadUrl));
+        var response = await this.happyHttpClient.SharedHttpClient.GetAsync(downloadUrl);
         response.EnsureSuccessStatusCode();
 
         var outputDir = new DirectoryInfo(Path.Combine(this.pluginDirectory.FullName, repoManifest.InternalName, version?.ToString() ?? string.Empty));
@@ -867,13 +878,13 @@ Thanks and have fun!";
         {
             try
             {
-                if (!plugin.IsDisabled)
+                if (!plugin.IsDisabled && !plugin.IsOrphaned)
                 {
                     await plugin.LoadAsync(reason);
                 }
                 else
                 {
-                    Log.Verbose($"{name} was disabled");
+                    Log.Verbose($"{name} not loaded, disabled:{plugin.IsDisabled} orphaned:{plugin.IsOrphaned}");
                 }
             }
             catch (InvalidPluginException)
@@ -1291,6 +1302,43 @@ Thanks and have fun!";
 
         return this.bannedPlugins.LastOrDefault(ban => ban.Name == manifest.InternalName).Reason;
     }
+
+    /// <summary>
+    /// Get the plugin that called this method by walking the provided stack trace,
+    /// or null, if it cannot be determined.
+    /// At the time, this is naive and shouldn't be used for security-critical checks.
+    /// </summary>
+    /// <param name="trace">The trace to walk.</param>
+    /// <returns>The calling plugin, or null.</returns>
+    public LocalPlugin? FindCallingPlugin(StackTrace trace)
+    {
+        foreach (var frame in trace.GetFrames())
+        {
+            var declaringType = frame.GetMethod()?.DeclaringType;
+            if (declaringType == null)
+                continue;
+
+            lock (this.pluginListLock)
+            {
+                foreach (var plugin in this.InstalledPlugins)
+                {
+                    if (plugin.AssemblyName != null &&
+                        plugin.AssemblyName.FullName == declaringType.Assembly.GetName().FullName)
+                        return plugin;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Get the plugin that called this method by walking the stack,
+    /// or null, if it cannot be determined.
+    /// At the time, this is naive and shouldn't be used for security-critical checks.
+    /// </summary>
+    /// <returns>The calling plugin, or null.</returns>
+    public LocalPlugin? FindCallingPlugin() => this.FindCallingPlugin(new StackTrace());
 
     private void DetectAvailablePluginUpdates()
     {
