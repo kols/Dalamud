@@ -22,7 +22,7 @@ internal class PluginRepository
     /// <summary>
     /// The URL of the official main repository.
     /// </summary>
-    public const string MainRepoUrl = "https://aonyx.ffxiv.wang/Plugin/PluginMaster?apiLevel=7";
+    public const string MainRepoUrl = "https://kamori.goats.dev/Plugin/PluginMaster";
 
     private static readonly ModuleLog Log = new("PLUGINR");
 

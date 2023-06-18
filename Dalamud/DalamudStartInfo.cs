@@ -82,10 +82,10 @@ public record DalamudStartInfo : IServiceType
     /// </summary>
     public string? AssetDirectory { get; set; }
 
-        /// <summary>
-        /// Gets or sets the language of the game client.
-        /// </summary>
-        public ClientLanguage Language { get; set; } = ClientLanguage.ChineseSimplified;
+    /// <summary>
+    /// Gets or sets the language of the game client.
+    /// </summary>
+    public ClientLanguage Language { get; set; } = ClientLanguage.ChineseSimplified;
 
     /// <summary>
     /// Gets or sets the current game version code.

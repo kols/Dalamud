@@ -43,8 +43,8 @@ internal class PluginImageCache : IDisposable, IServiceType
     /// </summary>
     public const int PluginIconHeight = 512;
 
-    private const string MainRepoImageUrl = "https://raw.githubusercontent.com/ottercorp/DalamudPlugins/api6/{0}/{1}/images/{2}";
-    private const string MainRepoDip17ImageUrl = "https://raw.githubusercontent.com/ottercorp/PluginDistD17/main/{0}/{1}/images/{2}";
+    private const string MainRepoImageUrl = "https://raw.githubusercontent.com/goatcorp/DalamudPlugins/api6/{0}/{1}/images/{2}";
+    private const string MainRepoDip17ImageUrl = "https://raw.githubusercontent.com/goatcorp/PluginDistD17/main/{0}/{1}/images/{2}";
 
     [ServiceManager.ServiceDependency]
     private readonly InterfaceManager.InterfaceManagerWithScene imWithScene = Service<InterfaceManager.InterfaceManagerWithScene>.Get();
@@ -258,8 +258,7 @@ internal class PluginImageCache : IDisposable, IServiceType
             }
             catch (Exception ex)
             {
-                // Log.Error(ex, $"An unexpected error occurred with the icon for {manifest.InternalName}");
-                Log.Verbose($"An unexpected error occurred with the icon for {manifest.InternalName}");
+                Log.Error(ex, $"An unexpected error occurred with the icon for {manifest.InternalName}");
             }
         });
 
@@ -297,8 +296,7 @@ internal class PluginImageCache : IDisposable, IServiceType
             }
             catch (Exception ex)
             {
-                // Log.Error(ex, $"An unexpected error occurred with the images for {manifest.InternalName}");
-                Log.Verbose($"An unexpected error occurred with the images for {manifest.InternalName}");
+                Log.Error(ex, $"An unexpected error occurred with the images for {manifest.InternalName}");
             }
         });
 
